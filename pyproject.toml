@@ -1,0 +1,21 @@
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+exclude = '''
+/(
+    \.venv
+  | venv
+  | __pycache__
+  | migrations
+)/
+'''
+
+[tool.isort]
+profile = "black"        # this one line makes isort & Black compatible
+line_length = 88
+known_first_party = ["app", "agents", "core", "services"]
+skip_glob = ["*/migrations/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "agents/tests"]
+asyncio_mode = "auto"
