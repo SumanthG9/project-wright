@@ -40,5 +40,9 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # Auth
+    jwt_algorithm: str = "HS256"
+    refresh_token_expire_days: int = 7
+
 
 settings = Settings()
