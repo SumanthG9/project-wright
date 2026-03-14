@@ -1,38 +1,44 @@
-import os
+from encodings import utf_8
 from pathlib import Path
 
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-print(Path(__file__).resolve().parents[2] / ".env")
-load_dotenv(
-    Path(__file__).resolve().parents[2] / ".env"
-)  # reads .env from the project root
 
-# Database
-DATABASE_URL = os.getenv("DATABASE_URL")
-ALEMBIC_DATABASE_URL = os.getenv("ALEMBIC_DATABASE_URL")
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB = os.getenv("MONGO_DB")
-REDIS_URL = os.getenv("REDIS_URL")
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[2] / ".env",
+        env_file_encoding="utf_8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
-# Auth
-SECRET_KEY = os.getenv("SECRET_KEY")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+    # PostgreSQL
+    database_url: str
+    alembic_database_url: str
 
-# Ollama
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    # MongoDB
+    mongo_uri: str
+    mongo_db: str = "project_wright"
 
-# Pipeline mode — "local" or "cloud"
-PIPELINE_MODE = os.getenv("PIPELINE_MODE", "local")
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
 
-# Local model profile
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "qwen3.5:4b")
+    # Auth
+    secret_key: str
+    access_token_expire_minutes: int = 30
 
-# Cloud model profile (values unused until Week 7 resolver is built)
-CLOUD_MODEL_IDC = os.getenv("CLOUD_MODEL_IDC", "qwen3-next:80b-cloud")
-CLOUD_MODEL_SB = os.getenv("CLOUD_MODEL_SB", "qwen3-coder-next-cloud")
-CLOUD_MODEL_RP = os.getenv("CLOUD_MODEL_RP", "deepseek-v3.2-cloud")
-CLOUD_MODEL_OS = os.getenv("CLOUD_MODEL_OS", "qwen3-next:80b-cloud")
-CLOUD_MODEL_DF = os.getenv("CLOUD_MODEL_DF", "qwen3.5:122b-cloud")
-CLOUD_MODEL_CH = os.getenv("CLOUD_MODEL_CH", "kimi-k2-thinking-cloud")
-CLOUD_MODEL_BR = os.getenv("CLOUD_MODEL_BR", "nemotron-3-nano:30b-cloud")
+    # Ollama
+    ollama_base_url: str = "http://localhost:11434"
+
+    # Pipeline
+    pipeline_mode: str = "local"
+    local_model: str = "qwen3.5:4b"
+
+    # App runtime (new in Week 3 — add to .env now)
+    environment: str = "development"
+    debug: bool = True
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+
+
+settings = Settings()
