@@ -48,3 +48,4 @@ async def init_mongo():
 
 if __name__ == "__main__":
     asyncio.run(init_mongo())
+    # ok
