@@ -44,6 +44,43 @@ An AI-powered autonomous writing assistant that takes a draft and produces a pub
 7. Verify pre-commit works
    pre-commit run --all-files
 
+## Local Development Setup
+
+### Ollama Installation & Configuration
+
+Ollama provides the LLM inference API required by the agent pipeline. **Ollama must be running before starting FastAPI.**
+
+1. Install Ollama:
+   ```bash
+   # macOS
+   brew install ollama
+
+   # Linux
+   curl -fsSL https://ollama.ai/install.sh | sh
+
+   # Windows
+   # Download from https://ollama.ai/download
+   ```
+
+2. Start the Ollama service:
+   ```bash
+   ollama serve
+   ```
+   This starts the API server on `http://localhost:11434`
+
+3. Pull the required models in another terminal:
+   ```bash
+   # Current model (Week 1-6)
+   ollama pull qwen3.5:4b
+
+4. Verify Ollama is reachable:
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+   You should see a JSON response listing your pulled models.
+
+**Important:** Ollama must be running before you start the FastAPI backend. If FastAPI starts without Ollama, it will fail when trying to initialize the agent pipeline.
+
 ## CI
 
 GitHub Actions runs on every push/PR to main and develop.
