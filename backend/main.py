@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from backend.auth.router import router as auth_router
 from backend.core.config import settings
+from backend.projects.router import router as projects_router
 
 logger = structlog.get_logger()
 
@@ -34,6 +35,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router, prefix="/auth")
+app.include_router(projects_router, prefix="/projects", tags=["projects"])
 
 
 @app.get("/health", tags=["system"])
