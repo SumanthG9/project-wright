@@ -4,6 +4,7 @@ from venv import logger
 import structlog
 from fastapi import FastAPI
 
+from backend.auth.router import router as auth_router
 from backend.core.config import settings
 
 logger = structlog.get_logger()
@@ -31,6 +32,8 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
 )
+
+app.include_router(auth_router, prefix="/auth")
 
 
 @app.get("/health", tags=["system"])
