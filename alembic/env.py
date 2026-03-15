@@ -9,13 +9,13 @@ from alembic import context
 
 # Import your Base and all models so metadata is fully populated
 from backend.models import Base
-from backend.core.config import ALEMBIC_DATABASE_URL
+from backend.core.config import settings
 
 # Alembic Config object
 config = context.config
 
 # Set the DB URL from your settings (reads from .env)
-config.set_main_option("sqlalchemy.url", ALEMBIC_DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.alembic_database_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

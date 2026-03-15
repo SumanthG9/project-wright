@@ -17,17 +17,21 @@ import structlog
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, IndexModel
 
-from backend.core.config import MONGO_DB, MONGO_URI
+from backend.core.config import settings
 
 log = structlog.get_logger()
 
 
 async def init_mongo():
     """Connect to MongoDB, create story_base collection and project_id index."""
-    host = MONGO_URI.split("@")[-1]
-    log.info("connecting to database, mongo.connecting", host=host, database=MONGO_DB)
-    client: AsyncIOMotorClient = AsyncIOMotorClient(MONGO_URI)
-    db = client[MONGO_DB]
+    host = settings.mongo_uri.split("@")[-1]
+    log.info(
+        "connecting to database, mongo.connecting",
+        host=host,
+        database=settings.mongo_db,
+    )
+    client: AsyncIOMotorClient = AsyncIOMotorClient(settings.mongo_uri)
+    db = client[settings.mongo_db]
 
     # existing collection name
     existing_collecitons = await db.list_collection_names()
@@ -43,7 +47,7 @@ async def init_mongo():
     result = await collection.create_indexes([index])
     log.info("mongo.indexes_created", indexes=result)
 
-    log.info("mongo.init_complete", database=MONGO_DB)
+    log.info("mongo.init_complete", database=settings.mongo_db)
 
 
 if __name__ == "__main__":
