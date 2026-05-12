@@ -36,6 +36,6 @@ htmlcov/
 .coverage
 
 # Uploads / generated documents (Week 4)
-uploads/
+uploads1/
 *.pdf
 *.docx
