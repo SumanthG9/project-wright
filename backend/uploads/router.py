@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,12 @@ from backend.models.draft import Draft
 from backend.models.project import Project
 from backend.models.user import User
 from backend.uploads.schemas import DraftResponse
-from backend.uploads.service import save_upload_file, validate_upload_file
+from backend.uploads.service import (
+    extract_text_from_file,
+    generate_upload_path,
+    save_upload_file,
+    validate_upload_file,
+)
 
 router = APIRouter(tags=["Uploads"])
 
@@ -18,7 +23,7 @@ router = APIRouter(tags=["Uploads"])
 @router.post(
     "/{project_id}",
     response_model=DraftResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=201,
 )
 async def upload_draft(
     project_id: int,
@@ -26,48 +31,45 @@ async def upload_draft(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Upload a draft file for a project.
-    """
-
-    # Verify project ownership
-    result = await db.execute(
+    project_result = await db.execute(
         select(Project).where(
             Project.id == project_id,
             Project.user_id == current_user.id,
         )
     )
 
-    project = result.scalar_one_or_none()
+    project = project_result.scalar_one_or_none()
 
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
+            status_code=404,
+            detail="Project not found.",
         )
 
-    # Validate uploaded file
-    await validate_upload_file(file)
+    content = await validate_upload_file(file)
 
-    # Temporary versioning strategy (Week 4 Day 3 improves this)
     version_result = await db.execute(
         select(func.count(Draft.id)).where(Draft.project_id == project_id)
     )
 
-    version = version_result.scalar_one() + 1
+    version_count = version_result.scalar() or 0
+    next_version = version_count + 1
 
-    # Save file to disk
-    saved_file_path = await save_upload_file(
-        file=file,
+    upload_path = generate_upload_path(
         project_id=project_id,
-        version=version,
+        version=next_version,
+        original_filename=file.filename,
     )
+
+    saved_path = await save_upload_file(content, upload_path)
+
+    extracted_text = extract_text_from_file(saved_path)
 
     draft = Draft(
         project_id=project_id,
-        version=version,
-        file_path=saved_file_path,
-        extracted_text="",
+        version=next_version,
+        file_path=saved_path,
+        extracted_text=extracted_text,
     )
 
     db.add(draft)

@@ -1,61 +1,116 @@
-import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import HTTPException, UploadFile, status
+import docx
+import fitz
+from fastapi import HTTPException, UploadFile
 
 from backend.core.config import settings
 
 ALLOWED_EXTENSIONS = {".docx", ".pdf"}
 
 
-async def validate_upload_file(file: UploadFile) -> None:
-    """
-    Validate uploaded file type and size.
-    """
-
+async def validate_upload_file(
+    file: UploadFile,
+) -> bytes:
     extension = Path(file.filename).suffix.lower()
 
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only .docx and .pdf files are allowed",
+            status_code=400,
+            detail="Only .docx and .pdf files are allowed.",
         )
 
-    contents = await file.read()
-    file_size = len(contents)
+    content = await file.read()
 
     max_size_bytes = settings.max_upload_size_mb * 1024 * 1024
 
-    if file_size > max_size_bytes:
+    if len(content) > max_size_bytes:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds {settings.max_upload_size_mb}MB limit",
+            status_code=400,
+            detail=f"File exceeds {settings.max_upload_size_mb}MB limit.",
         )
 
-    # Reset cursor after reading
-    await file.seek(0)
+    return content
 
 
-async def save_upload_file(
-    file: UploadFile,
+def generate_upload_path(
     project_id: int,
     version: int,
-) -> str:
-    """
-    Save uploaded file to disk and return file path.
-    """
-
+    original_filename: str,
+) -> Path:
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    extension = Path(file.filename).suffix.lower()
+    extension = Path(original_filename).suffix.lower()
 
-    unique_filename = f"project_{project_id}_v{version}_{uuid4().hex}{extension}"
+    filename = f"project_{project_id}_v{version}_{uuid4().hex}{extension}"
 
-    file_path = upload_dir / unique_filename
+    return upload_dir / filename
 
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
 
-    return str(file_path)
+async def save_upload_file(
+    content: bytes,
+    destination: Path,
+) -> str:
+    with open(destination, "wb") as buffer:
+        buffer.write(content)
+
+    return str(destination)
+
+
+def extract_docx_text(file_path: str) -> str:
+    try:
+        document = docx.Document(file_path)
+
+        paragraphs = [
+            paragraph.text.strip()
+            for paragraph in document.paragraphs
+            if paragraph.text.strip()
+        ]
+
+        return "\n".join(paragraphs)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"DOCX extraction failed: {str(e)}",
+        )
+
+
+def extract_pdf_text(file_path: str) -> str:
+    try:
+        document = fitz.open(file_path)
+
+        extracted_pages = []
+
+        for page in document:
+            text = page.get_text().strip()
+
+            if text:
+                extracted_pages.append(text)
+
+        document.close()
+
+        return "\n\n".join(extracted_pages)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF extraction failed: {str(e)}",
+        )
+
+
+def extract_text_from_file(file_path: str) -> str:
+    extension = Path(file_path).suffix.lower()
+
+    if extension == ".docx":
+        return extract_docx_text(file_path)
+
+    if extension == ".pdf":
+        return extract_pdf_text(file_path)
+
+    raise HTTPException(
+        status_code=400,
+        detail="Unsupported file type for extraction.",
+    )
