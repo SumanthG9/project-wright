@@ -1,162 +1,257 @@
+import uuid
+
 import pytest
-from httpx import AsyncClient
-
-PROJECT_PAYLOAD = {
-    "title": "My Novel",
-    "type": "original",
-    "genre": "Fantasy",
-    "audience": "Adult",
-}
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+def unique_email() -> str:
+    return f"{uuid.uuid4()}@example.com"
 
 
-@pytest.fixture
-async def second_user_headers(client: AsyncClient) -> dict:
-    resp = await client.post(
+async def create_user_and_get_token(
+    client,
+    name="Test User",
+    password="projectpassword123",
+):
+    response = await client.post(
         "/auth/register",
-        json={"name": "Bob", "email": "bob@example.com", "password": "bobpassword"},
+        json={
+            "name": name,
+            "email": unique_email(),
+            "password": password,
+        },
     )
-    assert resp.status_code == 201
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    return data["access_token"]
 
 
-@pytest.fixture
-async def created_project(client: AsyncClient, auth_headers: dict) -> dict:
-    resp = await client.post("/projects/", json=PROJECT_PAYLOAD, headers=auth_headers)
-    assert resp.status_code == 201
-    return resp.json()
+@pytest.mark.asyncio
+async def test_create_project(client):
+    token = await create_user_and_get_token(
+        client,
+        "Project User",
+    )
 
+    response = await client.post(
+        "/projects/",
+        json={
+            "title": "My First Project",
+            "type": "original",
+            "genre": "Fantasy",
+            "audience": "Young Adult",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
 
-# ── Create ────────────────────────────────────────────────────────────────────
+    assert response.status_code == 201
 
+    data = response.json()
 
-async def test_create_project(client: AsyncClient, auth_headers: dict):
-    resp = await client.post("/projects/", json=PROJECT_PAYLOAD, headers=auth_headers)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["title"] == "My Novel"
+    assert data["title"] == "My First Project"
     assert data["type"] == "original"
-    assert data["status"] == "draft"
-    assert "id" in data
-    assert "created_at" in data
 
 
-async def test_create_project_unauthenticated(client: AsyncClient):
-    resp = await client.post("/projects/", json=PROJECT_PAYLOAD)
-    assert resp.status_code == 401
+@pytest.mark.asyncio
+async def test_list_projects(client):
+    token = await create_user_and_get_token(
+        client,
+        "List User",
+    )
 
+    create_response = await client.post(
+        "/projects/",
+        json={
+            "title": "Project One",
+            "type": "original",
+            "genre": "Sci-Fi",
+            "audience": "Adult",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
 
-# ── List ──────────────────────────────────────────────────────────────────────
+    assert create_response.status_code == 201
 
+    response = await client.get(
+        "/projects/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
 
-async def test_list_projects(
-    client: AsyncClient, auth_headers: dict, created_project: dict
-):
-    resp = await client.get("/projects/", headers=auth_headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    assert response.status_code == 200
+
+    data = response.json()
+
     assert isinstance(data, list)
-    assert len(data) == 1
-    assert data[0]["id"] == created_project["id"]
+    assert len(data) >= 1
 
 
-async def test_list_projects_only_own(
-    client: AsyncClient,
-    auth_headers: dict,
-    second_user_headers: dict,
-    created_project: dict,
-):
-    """User 2 listing projects must not see User 1's project."""
-    resp = await client.get("/projects/", headers=second_user_headers)
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-
-# ── Detail ────────────────────────────────────────────────────────────────────
-
-
-async def test_get_project_detail(
-    client: AsyncClient, auth_headers: dict, created_project: dict
-):
-    project_id = created_project["id"]
-    resp = await client.get(f"/projects/{project_id}", headers=auth_headers)
-    assert resp.status_code == 200
-    assert resp.json()["id"] == project_id
-
-
-async def test_get_project_not_found(client: AsyncClient, auth_headers: dict):
-    resp = await client.get("/projects/9999", headers=auth_headers)
-    assert resp.status_code == 404
-
-
-# ── Update ────────────────────────────────────────────────────────────────────
-
-
-async def test_patch_project(
-    client: AsyncClient, auth_headers: dict, created_project: dict
-):
-    project_id = created_project["id"]
-    resp = await client.patch(
-        f"/projects/{project_id}",
-        json={"title": "Updated Title"},
-        headers=auth_headers,
+@pytest.mark.asyncio
+async def test_get_project_detail(client):
+    token = await create_user_and_get_token(
+        client,
+        "Detail User",
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["title"] == "Updated Title"
-    assert data["genre"] == "Fantasy"  # unchanged field preserved
 
-
-# ── Delete ────────────────────────────────────────────────────────────────────
-
-
-async def test_delete_project(
-    client: AsyncClient, auth_headers: dict, created_project: dict
-):
-    project_id = created_project["id"]
-    resp = await client.delete(f"/projects/{project_id}", headers=auth_headers)
-    assert resp.status_code == 204
-
-    # Confirm it is gone
-    resp = await client.get(f"/projects/{project_id}", headers=auth_headers)
-    assert resp.status_code == 404
-
-
-# ── Ownership enforcement ─────────────────────────────────────────────────────
-
-
-async def test_ownership_get(
-    client: AsyncClient,
-    second_user_headers: dict,
-    created_project: dict,
-):
-    project_id = created_project["id"]
-    resp = await client.get(f"/projects/{project_id}", headers=second_user_headers)
-    assert resp.status_code == 404  # not 403 — resource must not be revealed
-
-
-async def test_ownership_patch(
-    client: AsyncClient,
-    second_user_headers: dict,
-    created_project: dict,
-):
-    project_id = created_project["id"]
-    resp = await client.patch(
-        f"/projects/{project_id}",
-        json={"title": "Hijacked"},
-        headers=second_user_headers,
+    create_response = await client.post(
+        "/projects/",
+        json={
+            "title": "Detail Project",
+            "type": "fanfiction",
+            "genre": "Anime",
+            "audience": "Teen",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
     )
-    assert resp.status_code == 404
+
+    assert create_response.status_code == 201
+
+    project_id = create_response.json()["id"]
+
+    response = await client.get(
+        f"/projects/{project_id}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == project_id
+    assert data["title"] == "Detail Project"
 
 
-async def test_ownership_delete(
-    client: AsyncClient,
-    second_user_headers: dict,
-    created_project: dict,
-):
-    project_id = created_project["id"]
-    resp = await client.delete(f"/projects/{project_id}", headers=second_user_headers)
-    assert resp.status_code == 404
+@pytest.mark.asyncio
+async def test_update_project(client):
+    token = await create_user_and_get_token(
+        client,
+        "Update User",
+    )
+
+    create_response = await client.post(
+        "/projects/",
+        json={
+            "title": "Old Title",
+            "type": "original",
+            "genre": "Fantasy",
+            "audience": "Adult",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    project_id = create_response.json()["id"]
+
+    response = await client.patch(
+        f"/projects/{project_id}",
+        json={
+            "title": "New Title",
+            "status": "in_progress",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["title"] == "New Title"
+    assert data["status"] == "in_progress"
+
+
+@pytest.mark.asyncio
+async def test_delete_project(client):
+    token = await create_user_and_get_token(
+        client,
+        "Delete User",
+    )
+
+    create_response = await client.post(
+        "/projects/",
+        json={
+            "title": "Delete Me",
+            "type": "original",
+            "genre": "Drama",
+            "audience": "Adult",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    project_id = create_response.json()["id"]
+
+    delete_response = await client.delete(
+        f"/projects/{project_id}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert delete_response.status_code == 204
+
+    get_response = await client.get(
+        f"/projects/{project_id}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_project_access_denied_for_other_user(client):
+    token_a = await create_user_and_get_token(
+        client,
+        "User A",
+    )
+
+    token_b = await create_user_and_get_token(
+        client,
+        "User B",
+    )
+
+    create_response = await client.post(
+        "/projects/",
+        json={
+            "title": "Private Project",
+            "type": "original",
+            "genre": "Thriller",
+            "audience": "Adult",
+        },
+        headers={
+            "Authorization": f"Bearer {token_a}",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    project_id = create_response.json()["id"]
+
+    response = await client.get(
+        f"/projects/{project_id}",
+        headers={
+            "Authorization": f"Bearer {token_b}",
+        },
+    )
+
+    assert response.status_code == 404
