@@ -44,5 +44,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     refresh_token_expire_days: int = 7
 
+    # Uploads (Week 4 Day 1)
+    upload_dir: str
+    max_upload_size_mb: int
+
 
 settings = Settings()

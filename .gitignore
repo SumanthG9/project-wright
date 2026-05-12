@@ -34,3 +34,8 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Uploads / generated documents (Week 4)
+uploads/
+*.pdf
+*.docx
