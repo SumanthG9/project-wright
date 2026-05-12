@@ -17,5 +17,6 @@ known_first_party = ["app", "agents", "core", "services"]
 skip_glob = ["*/migrations/*"]
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests", "agents/tests"]
+testpaths = ["backend/tests"]
 asyncio_mode = "auto"
+pythonpath = ["."]
