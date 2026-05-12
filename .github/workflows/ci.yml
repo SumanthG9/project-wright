@@ -55,7 +55,7 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Run pytest (collection only — no real tests yet)
-        run: pytest --collect-only -q || [ $? -eq 5 ]
+        run: pytest -v
         working-directory: .
 
   docker-validate:

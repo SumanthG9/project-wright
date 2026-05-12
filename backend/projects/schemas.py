@@ -1,29 +1,23 @@
-# backend/projects/schemas.py
-from __future__ import annotations
-
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ProjectCreate(BaseModel):
     title: str
-    type: Literal["original", "fanfiction"]  # "original" or "fanfiction"
+    type: Literal["original", "fanfiction"]
     genre: str
     audience: str
 
 
 class ProjectUpdate(BaseModel):
-    title: Optional[str] = None
-    genre: Optional[str] = None
-    audience: Optional[str] = None
-    status: Optional[str] = None
+    title: str | None = None
+    status: str | None = None
 
 
 class ProjectResponse(BaseModel):
     id: int
-    user_id: int
     title: str
     type: str
     genre: str
@@ -31,4 +25,4 @@ class ProjectResponse(BaseModel):
     status: str
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
