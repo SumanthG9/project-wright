@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
+from typing import Any
 
 
 def create_event(
-    *,
     event: str,
     project_id: int,
     agent: str,
     status: str,
-    metadata: dict | None = None,
-) -> dict:
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
-    Standardized orchestration event payload.
+    Creates a standardized orchestration event payload.
     """
 
     return {
