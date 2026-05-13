@@ -14,3 +14,7 @@ class DraftResponse(BaseModel):
     model_config = {
         "from_attributes": True,
     }
+
+
+class DraftListResponse(BaseModel):
+    drafts: list[DraftResponse]

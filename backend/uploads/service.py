@@ -1,44 +1,55 @@
 from pathlib import Path
 from uuid import uuid4
 
-import docx
 import fitz
-from fastapi import HTTPException, UploadFile
+from docx import Document
+from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.config import settings
+from backend.models.draft import Draft
 
 ALLOWED_EXTENSIONS = {".docx", ".pdf"}
 
 
-async def validate_upload_file(
-    file: UploadFile,
-) -> bytes:
+def validate_upload_file(file: UploadFile, file_bytes: bytes) -> None:
     extension = Path(file.filename).suffix.lower()
 
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
-            status_code=400,
-            detail="Only .docx and .pdf files are allowed.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .docx and .pdf files are allowed",
         )
 
-    content = await file.read()
+    max_size = settings.max_upload_size_mb * 1024 * 1024
 
-    max_size_bytes = settings.max_upload_size_mb * 1024 * 1024
-
-    if len(content) > max_size_bytes:
+    if len(file_bytes) > max_size:
         raise HTTPException(
-            status_code=400,
-            detail=f"File exceeds {settings.max_upload_size_mb}MB limit.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds {settings.max_upload_size_mb}MB limit",
         )
 
-    return content
+
+async def get_next_draft_version(
+    db: AsyncSession,
+    project_id: int,
+) -> int:
+    result = await db.execute(
+        select(func.max(Draft.version)).where(Draft.project_id == project_id)
+    )
+
+    max_version = result.scalar()
+
+    return (max_version or 0) + 1
 
 
-def generate_upload_path(
+def save_upload_file(
+    file_bytes: bytes,
+    original_filename: str,
     project_id: int,
     version: int,
-    original_filename: str,
-) -> Path:
+) -> str:
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -46,22 +57,17 @@ def generate_upload_path(
 
     filename = f"project_{project_id}_v{version}_{uuid4().hex}{extension}"
 
-    return upload_dir / filename
+    file_path = upload_dir / filename
 
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
 
-async def save_upload_file(
-    content: bytes,
-    destination: Path,
-) -> str:
-    with open(destination, "wb") as buffer:
-        buffer.write(content)
-
-    return str(destination)
+    return str(file_path)
 
 
 def extract_docx_text(file_path: str) -> str:
     try:
-        document = docx.Document(file_path)
+        document = Document(file_path)
 
         paragraphs = [
             paragraph.text.strip()
@@ -73,30 +79,30 @@ def extract_docx_text(file_path: str) -> str:
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"DOCX extraction failed: {str(e)}",
         )
 
 
 def extract_pdf_text(file_path: str) -> str:
     try:
-        document = fitz.open(file_path)
+        pdf = fitz.open(file_path)
 
-        extracted_pages = []
+        pages = []
 
-        for page in document:
+        for page in pdf:
             text = page.get_text().strip()
 
             if text:
-                extracted_pages.append(text)
+                pages.append(text)
 
-        document.close()
+        pdf.close()
 
-        return "\n\n".join(extracted_pages)
+        return "\n\n".join(pages)
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"PDF extraction failed: {str(e)}",
         )
 
@@ -111,6 +117,20 @@ def extract_text_from_file(file_path: str) -> str:
         return extract_pdf_text(file_path)
 
     raise HTTPException(
-        status_code=400,
-        detail="Unsupported file type for extraction.",
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Unsupported file type",
     )
+
+
+async def get_latest_draft(
+    db: AsyncSession,
+    project_id: int,
+) -> Draft | None:
+    result = await db.execute(
+        select(Draft)
+        .where(Draft.project_id == project_id)
+        .order_by(Draft.version.desc())
+        .limit(1)
+    )
+
+    return result.scalar_one_or_none()

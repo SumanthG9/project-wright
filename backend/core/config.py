@@ -1,4 +1,3 @@
-from encodings import utf_8
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -7,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",
-        env_file_encoding="utf_8",
+        env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
@@ -34,17 +33,17 @@ class Settings(BaseSettings):
     pipeline_mode: str = "local"
     local_model: str = "qwen3.5:4b"
 
-    # App runtime (new in Week 3 — add to .env now)
+    # Runtime
     environment: str = "development"
     debug: bool = True
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
-    # Auth
+    # JWT
     jwt_algorithm: str = "HS256"
     refresh_token_expire_days: int = 7
 
-    # Uploads (Week 4 Day 1)
+    # Uploads
     upload_dir: str
     max_upload_size_mb: int
 
