@@ -1,7 +1,9 @@
+from uuid import uuid4
+
 from langgraph.graph import END, START, StateGraph
 
+from backend.agents.checkpoint import get_checkpointer
 from backend.agents.events import create_event
-from backend.agents.publisher import publish_event
 from backend.agents.state import ProjectState
 
 
@@ -9,8 +11,8 @@ async def placeholder_node(state: ProjectState) -> ProjectState:
     """
     Minimal orchestration node used to validate:
     - state mutation
-    - event emission
-    - Redis pub/sub integration
+    - checkpoint persistence
+    - resumable execution
     """
 
     started_event = create_event(
@@ -22,12 +24,8 @@ async def placeholder_node(state: ProjectState) -> ProjectState:
 
     state["events"].append(started_event)
 
-    await publish_event(
-        project_id=state["project_id"],
-        event=started_event,
-    )
-
     state["active_agent"] = "placeholder"
+    state["pipeline_status"] = "running"
 
     completed_event = create_event(
         event="placeholder_agent_completed",
@@ -38,45 +36,40 @@ async def placeholder_node(state: ProjectState) -> ProjectState:
 
     state["events"].append(completed_event)
 
-    await publish_event(
-        project_id=state["project_id"],
-        event=completed_event,
-    )
-
     state["pipeline_status"] = "completed"
 
-    pipeline_event = create_event(
+    pipeline_completed_event = create_event(
         event="pipeline_completed",
         project_id=state["project_id"],
         agent="system",
         status="completed",
     )
 
-    state["events"].append(pipeline_event)
-
-    await publish_event(
-        project_id=state["project_id"],
-        event=pipeline_event,
-    )
+    state["events"].append(pipeline_completed_event)
 
     return state
 
 
-graph_builder = StateGraph(ProjectState)
+async def run_graph(state: ProjectState) -> ProjectState:
+    """
+    Executes the orchestration graph with durable checkpointing.
+    """
 
-graph_builder.add_node(
-    "placeholder",
-    placeholder_node,
-)
+    builder = StateGraph(ProjectState)
 
-graph_builder.add_edge(
-    START,
-    "placeholder",
-)
+    builder.add_node("placeholder", placeholder_node)
 
-graph_builder.add_edge(
-    "placeholder",
-    END,
-)
+    builder.add_edge(START, "placeholder")
+    builder.add_edge("placeholder", END)
 
-graph = graph_builder.compile()
+    config = {"configurable": {"thread_id": str(uuid4())}}
+
+    async with get_checkpointer() as checkpointer:
+        graph = builder.compile(checkpointer=checkpointer)
+
+        result = await graph.ainvoke(
+            state,
+            config=config,
+        )
+
+    return result

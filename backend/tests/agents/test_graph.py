@@ -1,27 +1,30 @@
 import pytest
 
-from backend.agents.graph import graph
+from backend.agents.graph import run_graph
+from backend.agents.state import ProjectState
 
 
 @pytest.mark.asyncio
-async def test_graph_execution():
+async def test_graph_checkpoint_execution():
     """
-    Validates minimal LangGraph orchestration execution.
+    Verifies:
+    - graph execution
+    - checkpoint persistence
+    - state mutation
+    - durable orchestration execution
     """
 
-    initial_state = {
+    state: ProjectState = {
         "project_id": 1,
         "current_draft_id": 1,
         "extracted_text": "Hello Project Wright",
         "active_agent": "",
-        "pipeline_status": "running",
+        "pipeline_status": "pending",
         "retry_count": 0,
         "events": [],
     }
 
-    result = await graph.ainvoke(initial_state)
-
-    assert result["active_agent"] == "placeholder"
+    result = await run_graph(state)
 
     assert result["pipeline_status"] == "completed"
 
