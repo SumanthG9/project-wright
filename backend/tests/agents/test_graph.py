@@ -1,31 +1,34 @@
-from backend.agents.graph import build_graph
+import pytest
+
+from backend.agents.graph import graph
 
 
-def test_minimal_graph_execution():
+@pytest.mark.asyncio
+async def test_graph_execution():
     """
-    Verify LangGraph orchestration skeleton executes successfully.
+    Validates minimal LangGraph orchestration execution.
     """
-
-    graph = build_graph()
 
     initial_state = {
         "project_id": 1,
         "current_draft_id": 1,
-        "extracted_text": "Project Wright test draft.",
+        "extracted_text": "Hello Project Wright",
         "active_agent": "",
-        "pipeline_status": "pending",
+        "pipeline_status": "running",
         "retry_count": 0,
         "events": [],
     }
 
-    result = graph.invoke(initial_state)
-
-    assert result["pipeline_status"] == "completed"
+    result = await graph.ainvoke(initial_state)
 
     assert result["active_agent"] == "placeholder"
 
-    assert len(result["events"]) == 2
+    assert result["pipeline_status"] == "completed"
 
-    assert result["events"][0]["event"] == "agent_started"
+    assert len(result["events"]) == 3
 
-    assert result["events"][1]["event"] == "agent_completed"
+    assert result["events"][0]["event"] == "placeholder_agent_started"
+
+    assert result["events"][1]["event"] == "placeholder_agent_completed"
+
+    assert result["events"][2]["event"] == "pipeline_completed"

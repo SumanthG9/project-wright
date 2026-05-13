@@ -37,3 +37,6 @@ langgraph==0.4.7
 langchain==0.3.25
 langchain-community==0.3.24
 langchain-ollama==0.3.3
+
+redis[hiredis]==5.0.4
+websockets==12.0

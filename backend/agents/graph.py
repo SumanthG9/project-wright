@@ -1,53 +1,82 @@
 from langgraph.graph import END, START, StateGraph
 
 from backend.agents.events import create_event
+from backend.agents.publisher import publish_event
 from backend.agents.state import ProjectState
 
 
-def placeholder_node(state: ProjectState) -> ProjectState:
+async def placeholder_node(state: ProjectState) -> ProjectState:
     """
-    Minimal placeholder orchestration node.
-
-    No AI logic yet.
-    Only validates LangGraph execution flow.
+    Minimal orchestration node used to validate:
+    - state mutation
+    - event emission
+    - Redis pub/sub integration
     """
 
-    event = create_event(
-        event="agent_started",
+    started_event = create_event(
+        event="placeholder_agent_started",
         project_id=state["project_id"],
         agent="placeholder",
         status="running",
     )
 
+    state["events"].append(started_event)
+
+    await publish_event(
+        project_id=state["project_id"],
+        event=started_event,
+    )
+
     state["active_agent"] = "placeholder"
-    state["pipeline_status"] = "running"
 
-    state["events"].append(event)
-
-    completion_event = create_event(
-        event="agent_completed",
+    completed_event = create_event(
+        event="placeholder_agent_completed",
         project_id=state["project_id"],
         agent="placeholder",
         status="completed",
     )
 
-    state["events"].append(completion_event)
+    state["events"].append(completed_event)
+
+    await publish_event(
+        project_id=state["project_id"],
+        event=completed_event,
+    )
 
     state["pipeline_status"] = "completed"
+
+    pipeline_event = create_event(
+        event="pipeline_completed",
+        project_id=state["project_id"],
+        agent="system",
+        status="completed",
+    )
+
+    state["events"].append(pipeline_event)
+
+    await publish_event(
+        project_id=state["project_id"],
+        event=pipeline_event,
+    )
 
     return state
 
 
-def build_graph():
-    """
-    Build minimal Project Wright orchestration graph.
-    """
+graph_builder = StateGraph(ProjectState)
 
-    graph_builder = StateGraph(ProjectState)
+graph_builder.add_node(
+    "placeholder",
+    placeholder_node,
+)
 
-    graph_builder.add_node("placeholder", placeholder_node)
+graph_builder.add_edge(
+    START,
+    "placeholder",
+)
 
-    graph_builder.add_edge(START, "placeholder")
-    graph_builder.add_edge("placeholder", END)
+graph_builder.add_edge(
+    "placeholder",
+    END,
+)
 
-    return graph_builder.compile()
+graph = graph_builder.compile()
