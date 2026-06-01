@@ -16,6 +16,7 @@ async def start_pipeline(
         "project_id": project_id,
         "current_draft_id": draft_id,
         "extracted_text": "",
+        "idc_output": {},
         "active_agent": "",
         "pipeline_status": "pending",
         "retry_count": 0,

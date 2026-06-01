@@ -52,4 +52,4 @@ async def test_redis_pubsub_streaming():
         break
 
     await pubsub.unsubscribe(channel)
-    await pubsub.close()
+    await pubsub.aclose()
