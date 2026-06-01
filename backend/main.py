@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from backend.auth.router import router as auth_router
 from backend.core.config import settings
+from backend.pipeline.router import router as pipeline_router
 from backend.projects.router import router as projects_router
 from backend.uploads.router import router as uploads_router
 from backend.ws.router import router as ws_router
@@ -40,6 +41,10 @@ app.include_router(auth_router, prefix="/auth")
 app.include_router(projects_router, prefix="/projects")
 app.include_router(uploads_router, prefix="/uploads")
 app.include_router(ws_router, prefix="/ws")
+app.include_router(
+    pipeline_router,
+    prefix="/pipeline",
+)
 
 
 @app.get("/health", tags=["system"])
