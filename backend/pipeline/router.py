@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.db.session import get_db
 from backend.pipeline.schemas import (
     ApprovalRequest,
     PipelineEventsResponse,
@@ -23,16 +25,28 @@ router = APIRouter(tags=["Pipeline"])
 @router.post("/start")
 async def start_pipeline_route(
     payload: PipelineStartRequest,
+    db: AsyncSession = Depends(get_db),
 ):
     workflow_id, state = await start_pipeline(
         project_id=payload.project_id,
-        draft_id=payload.draft_id,
+        db=db,
     )
+    try:
+        workflow_id, state = await start_pipeline(
+            project_id=payload.project_id,
+            db=db,
+        )
 
-    return {
-        "workflow_id": workflow_id,
-        "status": state["pipeline_status"],
-    }
+        return {
+            "workflow_id": workflow_id,
+            "status": state["pipeline_status"],
+        }
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
 
 
 @router.post("/{workflow_id}/approve")
