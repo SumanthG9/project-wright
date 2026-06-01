@@ -9,6 +9,7 @@ async def test_hitl_pause_resume():
         "project_id": 1,
         "current_draft_id": 1,
         "extracted_text": "test draft",
+        "idc_output": {},
         "active_agent": "",
         "pipeline_status": "pending",
         "retry_count": 0,

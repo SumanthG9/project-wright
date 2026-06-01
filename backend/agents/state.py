@@ -10,6 +10,8 @@ class ProjectState(TypedDict):
     current_draft_id: int
     extracted_text: str
 
+    idc_output: dict[str, Any]
+
     active_agent: str
     pipeline_status: str
 

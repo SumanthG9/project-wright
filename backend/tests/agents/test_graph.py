@@ -18,6 +18,7 @@ async def test_graph_checkpoint_execution():
         "project_id": 1,
         "current_draft_id": 1,
         "extracted_text": "Hello Project Wright",
+        "idc_output": {},
         "active_agent": "",
         "pipeline_status": "pending",
         "retry_count": 0,
@@ -33,7 +34,9 @@ async def test_graph_checkpoint_execution():
     assert result["paused"] is True
     assert result["waiting_for_input"] is True
 
-    assert result["events"][0]["event"] == "placeholder_agent_started"
-    assert result["events"][1]["event"] == "placeholder_agent_completed"
+    assert result["events"][0]["event"] == "idc_started"
+    assert result["events"][1]["event"] == "idc_completed"
+
+    assert result["idc_output"]["status"] == "analyzed"
     assert result["events"][2]["event"] == "workflow_paused"
     assert result["events"][3]["event"] == "waiting_for_approval"

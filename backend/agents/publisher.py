@@ -30,4 +30,4 @@ async def publish_event(project_id: int, event: dict) -> None:
         json.dumps(event),
     )
 
-    await redis_client.close()
+    await redis_client.aclose()

@@ -12,6 +12,7 @@ from backend.agents.events import (
     WORKFLOW_RESUMED,
     create_event,
 )
+from backend.agents.idc import idc_node
 from backend.agents.state import ProjectState
 
 
@@ -134,17 +135,19 @@ def route_after_hitl(state: ProjectState):
 
 async def run_graph(state: ProjectState) -> ProjectState:
     """
-    Executes workflow until pause point.
+    Executes workflow until the HITL pause point.
     """
 
     builder = StateGraph(ProjectState)
 
-    builder.add_node("placeholder", placeholder_node)
+    # Nodes
+    builder.add_node("idc", idc_node)
     builder.add_node("hitl", hitl_node)
     builder.add_node("finalize", finalize_node)
 
-    builder.add_edge(START, "placeholder")
-    builder.add_edge("placeholder", "hitl")
+    # Flow
+    builder.add_edge(START, "idc")
+    builder.add_edge("idc", "hitl")
 
     builder.add_conditional_edges(
         "hitl",
@@ -177,7 +180,7 @@ async def resume_graph(
     approval: str = "approved",
 ) -> ProjectState:
     """
-    Resume workflow from paused state.
+    Resume workflow from paused HITL state.
     """
 
     state["paused"] = False
@@ -191,16 +194,18 @@ async def resume_graph(
     builder.add_edge(START, "finalize")
     builder.add_edge("finalize", END)
 
+    config = {
+        "configurable": {
+            "thread_id": str(uuid4()),
+        }
+    }
+
     async with get_checkpointer() as checkpointer:
         graph = builder.compile(checkpointer=checkpointer)
 
         result = await graph.ainvoke(
             state,
-            config={
-                "configurable": {
-                    "thread_id": str(uuid4()),
-                }
-            },
+            config=config,
         )
 
     return result
