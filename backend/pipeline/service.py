@@ -2,11 +2,7 @@ from uuid import uuid4
 
 from backend.agents.graph import resume_graph, run_graph
 from backend.agents.state import ProjectState
-
-# Temporary in-memory workflow registry
-# Phase 3 only.
-# Later replaced by database persistence.
-WORKFLOWS: dict[str, ProjectState] = {}
+from backend.pipeline.registry import get_workflow, register_workflow, update_workflow
 
 
 async def start_pipeline(
@@ -31,14 +27,19 @@ async def start_pipeline(
 
     result = await run_graph(state)
 
-    WORKFLOWS[workflow_id] = result
+    register_workflow(
+        workflow_id,
+        result,
+    )
 
     return workflow_id, result
 
 
-async def approve_pipeline(workflow_id: str) -> ProjectState:
+async def approve_pipeline(
+    workflow_id: str,
+) -> ProjectState:
 
-    state = WORKFLOWS.get(workflow_id)
+    state = get_workflow(workflow_id)
 
     if state is None:
         raise ValueError("Workflow not found")
@@ -48,14 +49,19 @@ async def approve_pipeline(workflow_id: str) -> ProjectState:
         approval="approved",
     )
 
-    WORKFLOWS[workflow_id] = result
+    update_workflow(
+        workflow_id,
+        result,
+    )
 
     return result
 
 
-async def reject_pipeline(workflow_id: str) -> ProjectState:
+async def reject_pipeline(
+    workflow_id: str,
+) -> ProjectState:
 
-    state = WORKFLOWS.get(workflow_id)
+    state = get_workflow(workflow_id)
 
     if state is None:
         raise ValueError("Workflow not found")
@@ -65,16 +71,66 @@ async def reject_pipeline(workflow_id: str) -> ProjectState:
         approval="rejected",
     )
 
-    WORKFLOWS[workflow_id] = result
+    update_workflow(
+        workflow_id,
+        result,
+    )
 
     return result
 
 
-def get_pipeline_status(workflow_id: str) -> ProjectState:
+async def resume_pipeline(
+    workflow_id: str,
+) -> ProjectState:
 
-    state = WORKFLOWS.get(workflow_id)
+    state = get_workflow(workflow_id)
+
+    if state is None:
+        raise ValueError("Workflow not found")
+
+    state["paused"] = False
+    state["waiting_for_input"] = False
+    state["pipeline_status"] = "running"
+
+    update_workflow(
+        workflow_id,
+        state,
+    )
+
+    return state
+
+
+def get_pipeline_status(
+    workflow_id: str,
+) -> ProjectState:
+
+    state = get_workflow(workflow_id)
 
     if state is None:
         raise ValueError("Workflow not found")
 
     return state
+
+
+def get_pipeline_history(
+    workflow_id: str,
+) -> ProjectState:
+
+    state = get_workflow(workflow_id)
+
+    if state is None:
+        raise ValueError("Workflow not found")
+
+    return state
+
+
+def get_pipeline_events(
+    workflow_id: str,
+) -> list[dict]:
+
+    state = get_workflow(workflow_id)
+
+    if state is None:
+        raise ValueError("Workflow not found")
+
+    return state["events"]
