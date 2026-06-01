@@ -21,3 +21,11 @@ def create_event(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "metadata": metadata or {},
     }
+
+
+WORKFLOW_PAUSED = "workflow_paused"
+WAITING_FOR_APPROVAL = "waiting_for_approval"
+WORKFLOW_RESUMED = "workflow_resumed"
+APPROVAL_RECEIVED = "approval_received"
+APPROVAL_REJECTED = "approval_rejected"
+PIPELINE_COMPLETED = "pipeline_completed"

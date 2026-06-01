@@ -1,11 +1,9 @@
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 class ProjectState(TypedDict):
     """
     Shared orchestration state for the workflow graph.
-
-    Every future agent mutates this same object.
     """
 
     project_id: int
@@ -16,5 +14,14 @@ class ProjectState(TypedDict):
     pipeline_status: str
 
     retry_count: int
+
+    paused: bool
+    waiting_for_input: bool
+
+    approval_status: Literal[
+        "",
+        "approved",
+        "rejected",
+    ]
 
     events: list[dict[str, Any]]
