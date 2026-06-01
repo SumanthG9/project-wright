@@ -13,36 +13,8 @@ from backend.agents.events import (
     create_event,
 )
 from backend.agents.idc import idc_node
+from backend.agents.outline import outline_node
 from backend.agents.state import ProjectState
-
-
-async def placeholder_node(state: ProjectState) -> ProjectState:
-    """
-    Simulated orchestration node.
-    """
-
-    started_event = create_event(
-        event="placeholder_agent_started",
-        project_id=state["project_id"],
-        agent="placeholder",
-        status="running",
-    )
-
-    state["events"].append(started_event)
-
-    state["active_agent"] = "placeholder"
-    state["pipeline_status"] = "running"
-
-    completed_event = create_event(
-        event="placeholder_agent_completed",
-        project_id=state["project_id"],
-        agent="placeholder",
-        status="completed",
-    )
-
-    state["events"].append(completed_event)
-
-    return state
 
 
 async def hitl_node(state: ProjectState) -> ProjectState:
@@ -142,12 +114,14 @@ async def run_graph(state: ProjectState) -> ProjectState:
 
     # Nodes
     builder.add_node("idc", idc_node)
+    builder.add_node("outline", outline_node)
     builder.add_node("hitl", hitl_node)
     builder.add_node("finalize", finalize_node)
 
     # Flow
     builder.add_edge(START, "idc")
-    builder.add_edge("idc", "hitl")
+    builder.add_edge("idc", "outline")
+    builder.add_edge("outline", "hitl")
 
     builder.add_conditional_edges(
         "hitl",
