@@ -21,17 +21,19 @@ async def test_graph_checkpoint_execution():
         "active_agent": "",
         "pipeline_status": "pending",
         "retry_count": 0,
+        "paused": False,
+        "waiting_for_input": False,
+        "approval_status": "",
         "events": [],
     }
 
     result = await run_graph(state)
 
-    assert result["pipeline_status"] == "completed"
-
-    assert len(result["events"]) == 3
+    assert result["pipeline_status"] == "paused"
+    assert result["paused"] is True
+    assert result["waiting_for_input"] is True
 
     assert result["events"][0]["event"] == "placeholder_agent_started"
-
     assert result["events"][1]["event"] == "placeholder_agent_completed"
-
-    assert result["events"][2]["event"] == "pipeline_completed"
+    assert result["events"][2]["event"] == "workflow_paused"
+    assert result["events"][3]["event"] == "waiting_for_approval"

@@ -3,16 +3,21 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 
 from backend.agents.checkpoint import get_checkpointer
-from backend.agents.events import create_event
+from backend.agents.events import (
+    APPROVAL_RECEIVED,
+    APPROVAL_REJECTED,
+    PIPELINE_COMPLETED,
+    WAITING_FOR_APPROVAL,
+    WORKFLOW_PAUSED,
+    WORKFLOW_RESUMED,
+    create_event,
+)
 from backend.agents.state import ProjectState
 
 
 async def placeholder_node(state: ProjectState) -> ProjectState:
     """
-    Minimal orchestration node used to validate:
-    - state mutation
-    - checkpoint persistence
-    - resumable execution
+    Simulated orchestration node.
     """
 
     started_event = create_event(
@@ -36,33 +41,125 @@ async def placeholder_node(state: ProjectState) -> ProjectState:
 
     state["events"].append(completed_event)
 
-    state["pipeline_status"] = "completed"
+    return state
 
-    pipeline_completed_event = create_event(
-        event="pipeline_completed",
-        project_id=state["project_id"],
-        agent="system",
-        status="completed",
+
+async def hitl_node(state: ProjectState) -> ProjectState:
+    """
+    Simulated HITL checkpoint.
+    """
+
+    state["paused"] = True
+    state["waiting_for_input"] = True
+    state["pipeline_status"] = "paused"
+
+    state["events"].append(
+        create_event(
+            event=WORKFLOW_PAUSED,
+            project_id=state["project_id"],
+            agent="hitl",
+            status="paused",
+        )
     )
 
-    state["events"].append(pipeline_completed_event)
+    state["events"].append(
+        create_event(
+            event=WAITING_FOR_APPROVAL,
+            project_id=state["project_id"],
+            agent="hitl",
+            status="waiting",
+        )
+    )
 
     return state
 
 
+async def finalize_node(state: ProjectState) -> ProjectState:
+    """
+    Final orchestration node.
+    """
+
+    state["pipeline_status"] = "completed"
+
+    if state.get("approval_status") == "approved":
+        state["events"].append(
+            create_event(
+                event=APPROVAL_RECEIVED,
+                project_id=state["project_id"],
+                agent="hitl",
+                status="approved",
+            )
+        )
+    else:
+        state["events"].append(
+            create_event(
+                event=APPROVAL_REJECTED,
+                project_id=state["project_id"],
+                agent="hitl",
+                status="rejected",
+            )
+        )
+
+    state["events"].append(
+        create_event(
+            event=WORKFLOW_RESUMED,
+            project_id=state["project_id"],
+            agent="hitl",
+            status="running",
+        )
+    )
+
+    state["events"].append(
+        create_event(
+            event=PIPELINE_COMPLETED,
+            project_id=state["project_id"],
+            agent="system",
+            status="completed",
+        )
+    )
+
+    return state
+
+
+def route_after_hitl(state: ProjectState):
+    """
+    Conditional routing after HITL checkpoint.
+    """
+
+    if state.get("approval_status") in ("approved", "rejected"):
+        return "finalize"
+
+    return END
+
+
 async def run_graph(state: ProjectState) -> ProjectState:
     """
-    Executes the orchestration graph with durable checkpointing.
+    Executes workflow until pause point.
     """
 
     builder = StateGraph(ProjectState)
 
     builder.add_node("placeholder", placeholder_node)
+    builder.add_node("hitl", hitl_node)
+    builder.add_node("finalize", finalize_node)
 
     builder.add_edge(START, "placeholder")
-    builder.add_edge("placeholder", END)
+    builder.add_edge("placeholder", "hitl")
 
-    config = {"configurable": {"thread_id": str(uuid4())}}
+    builder.add_conditional_edges(
+        "hitl",
+        route_after_hitl,
+        {
+            "finalize": "finalize",
+            END: END,
+        },
+    )
+
+    config = {
+        "configurable": {
+            "thread_id": str(uuid4()),
+        }
+    }
 
     async with get_checkpointer() as checkpointer:
         graph = builder.compile(checkpointer=checkpointer)
@@ -70,6 +167,40 @@ async def run_graph(state: ProjectState) -> ProjectState:
         result = await graph.ainvoke(
             state,
             config=config,
+        )
+
+    return result
+
+
+async def resume_graph(
+    state: ProjectState,
+    approval: str = "approved",
+) -> ProjectState:
+    """
+    Resume workflow from paused state.
+    """
+
+    state["paused"] = False
+    state["waiting_for_input"] = False
+    state["approval_status"] = approval
+
+    builder = StateGraph(ProjectState)
+
+    builder.add_node("finalize", finalize_node)
+
+    builder.add_edge(START, "finalize")
+    builder.add_edge("finalize", END)
+
+    async with get_checkpointer() as checkpointer:
+        graph = builder.compile(checkpointer=checkpointer)
+
+        result = await graph.ainvoke(
+            state,
+            config={
+                "configurable": {
+                    "thread_id": str(uuid4()),
+                }
+            },
         )
 
     return result
