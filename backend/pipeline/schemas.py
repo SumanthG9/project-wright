@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 class PipelineStartRequest(BaseModel):
     project_id: int
-    draft_id: int
 
 
 class ApprovalRequest(BaseModel):

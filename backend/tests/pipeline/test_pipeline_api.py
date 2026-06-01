@@ -4,14 +4,14 @@ import pytest
 
 
 def unique_email() -> str:
-    return f"recovery_{uuid.uuid4()}@example.com"
+    return f"pipeline_{uuid.uuid4()}@example.com"
 
 
 async def create_pipeline_workflow(client):
     register_response = await client.post(
         "/auth/register",
         json={
-            "name": "Recovery User",
+            "name": "Pipeline User",
             "email": unique_email(),
             "password": "password123",
         },
@@ -26,7 +26,7 @@ async def create_pipeline_workflow(client):
     project_response = await client.post(
         "/projects/",
         json={
-            "title": "Recovery Project",
+            "title": "Pipeline Project",
             "type": "original",
             "genre": "Fantasy",
             "audience": "Adult",
@@ -60,43 +60,38 @@ async def create_pipeline_workflow(client):
 
     assert response.status_code == 200
 
-    workflow_id = response.json()["workflow_id"]
-
-    return workflow_id, project_id
+    return response.json()["workflow_id"]
 
 
 @pytest.mark.asyncio
-async def test_pipeline_events(client):
-    workflow_id, _ = await create_pipeline_workflow(client)
+async def test_start_pipeline(client):
+    workflow_id = await create_pipeline_workflow(client)
 
-    response = await client.get(f"/pipeline/{workflow_id}/events")
+    assert workflow_id
+
+
+@pytest.mark.asyncio
+async def test_pipeline_status(client):
+    workflow_id = await create_pipeline_workflow(client)
+
+    response = await client.get(f"/pipeline/{workflow_id}/status")
 
     assert response.status_code == 200
 
     data = response.json()
 
-    assert len(data["events"]) >= 4
-
-
-@pytest.mark.asyncio
-async def test_pipeline_history(client):
-    workflow_id, project_id = await create_pipeline_workflow(client)
-
-    response = await client.get(f"/pipeline/{workflow_id}/history")
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert data["project_id"] == project_id
     assert data["paused"] is True
+    assert data["waiting_for_input"] is True
 
 
 @pytest.mark.asyncio
-async def test_pipeline_resume(client):
-    workflow_id, _ = await create_pipeline_workflow(client)
+async def test_pipeline_approve(client):
+    workflow_id = await create_pipeline_workflow(client)
 
-    response = await client.post(f"/pipeline/{workflow_id}/resume")
+    response = await client.post(
+        f"/pipeline/{workflow_id}/approve",
+        json={},
+    )
 
     assert response.status_code == 200
 
@@ -104,20 +99,5 @@ async def test_pipeline_resume(client):
 
     data = status_response.json()
 
-    assert data["status"] == "running"
-    assert data["paused"] is False
-    assert data["waiting_for_input"] is False
-
-
-@pytest.mark.asyncio
-async def test_pipeline_events_not_found(client):
-    response = await client.get("/pipeline/does-not-exist/events")
-
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_pipeline_history_not_found(client):
-    response = await client.get("/pipeline/does-not-exist/history")
-
-    assert response.status_code == 404
+    assert data["status"] == "completed"
+    assert data["approval_status"] == "approved"

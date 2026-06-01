@@ -1,30 +1,24 @@
 from uuid import uuid4
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.agents.graph import resume_graph, run_graph
 from backend.agents.state import ProjectState
+from backend.pipeline.data_loader import load_project_context
 from backend.pipeline.registry import get_workflow, register_workflow, update_workflow
 
 
 async def start_pipeline(
     project_id: int,
-    draft_id: int,
+    db: AsyncSession,
 ) -> tuple[str, ProjectState]:
 
     workflow_id = str(uuid4())
 
-    state: ProjectState = {
-        "project_id": project_id,
-        "current_draft_id": draft_id,
-        "extracted_text": "",
-        "idc_output": {},
-        "active_agent": "",
-        "pipeline_status": "pending",
-        "retry_count": 0,
-        "paused": False,
-        "waiting_for_input": False,
-        "approval_status": "",
-        "events": [],
-    }
+    state = await load_project_context(
+        project_id=project_id,
+        db=db,
+    )
 
     result = await run_graph(state)
 
